@@ -5,7 +5,7 @@ ENV DEBIAN_FRONTEND=noninteractive \
     PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1 \
     CATVTON_ROOT=/service/CatVTON \
-    DEVICE=cuda \
+    DEVICE=auto \
     PORT=8080
 
 RUN apt-get update \
