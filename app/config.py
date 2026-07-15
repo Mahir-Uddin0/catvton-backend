@@ -22,11 +22,17 @@ class Settings:
 
 def load_settings() -> Settings:
     requested = os.getenv("DEVICE", "auto").lower()
-    device = ("cuda" if torch.cuda.is_available() else "cpu") if requested == "auto" else requested
-    if device not in {"cpu", "cuda"}:
+    if requested == "auto":
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+    elif requested == "cuda":
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+    elif requested == "cpu":
+        device = "cpu"
+    else:
         raise RuntimeError("DEVICE must be auto, cpu, or cuda.")
+
     if device == "cuda" and not torch.cuda.is_available():
-        raise RuntimeError("DEVICE=cuda was requested, but CUDA is unavailable.")
+        device = "cpu"
 
     precision = os.getenv("MIXED_PRECISION", "bf16").lower()
     if device == "cpu" or precision == "no":
