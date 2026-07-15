@@ -1,0 +1,16 @@
+# HTTP server
+fastapi==0.115.6
+uvicorn[standard]==0.32.1
+python-multipart==0.0.20
+python-dotenv==1.0.1
+
+# CatVTON Mask-Free runtime; Detectron2, DensePose, SCHP, and Gradio are omitted.
+--extra-index-url https://download.pytorch.org/whl/cu121
+torch==2.4.0+cu121
+accelerate>=1.0,<2.0
+diffusers==0.30.3
+transformers==4.46.3
+peft==0.17.1
+huggingface_hub>=0.34.0,<2.0
+pillow==10.3.0
+numpy==1.26.4
