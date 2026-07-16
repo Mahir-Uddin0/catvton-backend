@@ -6,7 +6,7 @@ ENV DEBIAN_FRONTEND=noninteractive \
     PIP_NO_CACHE_DIR=1 \
     CATVTON_ROOT=/service/CatVTON \
     DEVICE=auto \
-    PORT=8000
+    PORT=8080
 
 RUN apt-get update \
     && apt-get install --yes --no-install-recommends python3.10 python3-pip ca-certificates \
@@ -24,6 +24,6 @@ COPY CatVTON/model/utils.py CatVTON/model/
 COPY CatVTON/utils.py CatVTON/
 COPY app ./app
 
-EXPOSE 8000
+EXPOSE 8080
 
-CMD ["python3.10", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1"]
+CMD ["python3.10", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8080", "--workers", "1"]
