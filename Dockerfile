@@ -7,8 +7,10 @@ ENV DEBIAN_FRONTEND=noninteractive \
     CATVTON_ROOT=/service/CatVTON \
     DEVICE=auto \
     PORT=8000 \
-    HF_HOME=/root/.cache/huggingface \
-    TRANSFORMERS_CACHE=/root/.cache/huggingface \
+    # HF_HOME=/root/.cache/huggingface \
+    # TRANSFORMERS_CACHE=/root/.cache/huggingface \
+    HF_HOME=/cache/huggingface \
+    TRANSFORMERS_CACHE=/cache/huggingface
     HF_HUB_OFFLINE=0 \
     TRANSFORMERS_OFFLINE=0
 
@@ -29,10 +31,6 @@ WORKDIR /service
 COPY requirements.txt ./
 RUN python3.10 -m pip install --upgrade pip && \
     python3.10 -m pip install -r requirements.txt
-
-# Download Hugging Face models during image build. Keep this online so the model cache is populated at build time.
-COPY scripts/download_models.py /tmp/download_models.py
-RUN python3.10 /tmp/download_models.py
 
 # Copy application source
 COPY CatVTON/model/pipeline.py CatVTON/model/
