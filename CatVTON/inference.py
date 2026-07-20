@@ -7,7 +7,7 @@ from diffusers.image_processor import VaeImageProcessor
 from tqdm import tqdm
 from PIL import Image, ImageFilter
 
-from model.pipeline import CatVTONPipeline
+from .model.pipeline import CatVTONPipeline
 
 class InferenceDataset(Dataset):
     def __init__(self, args):

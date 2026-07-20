@@ -9,9 +9,11 @@ from diffusers.image_processor import VaeImageProcessor
 from huggingface_hub import snapshot_download
 from PIL import Image
 
-from model.cloth_masker import AutoMasker, vis_mask
-from model.flux.pipeline_flux_tryon import FluxTryOnPipeline
-from utils import resize_and_crop, resize_and_padding
+from .model.cloth_masker import AutoMasker, vis_mask
+from pathlib import Path
+
+from .model.flux.pipeline_flux_tryon import FluxTryOnPipeline
+from .utils import resize_and_crop, resize_and_padding
 
 def parse_args():
     parser = argparse.ArgumentParser(description="FLUX Try-On Demo")
@@ -280,7 +282,8 @@ def app_gradio():
 args = parse_args()
 
 # 加载模型
-repo_path = snapshot_download(repo_id=args.resume_path)
+cache_dir = os.environ.get('HF_HOME') or os.path.join(str(Path.home()), '.cache', 'huggingface', 'hub')
+repo_path = snapshot_download(repo_id=args.resume_path, cache_dir=cache_dir)
 pipeline_flux = FluxTryOnPipeline.from_pretrained(args.base_model_path)
 pipeline_flux.load_lora_weights(
     os.path.join(repo_path, "flux-lora"), 

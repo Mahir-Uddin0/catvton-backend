@@ -1,6 +1,7 @@
 import inspect
 import os
 from typing import Union
+from pathlib import Path
 
 import PIL
 import numpy as np
@@ -14,10 +15,27 @@ from diffusers.utils.torch_utils import randn_tensor
 from huggingface_hub import snapshot_download
 from transformers import CLIPImageProcessor
 
-from model.attn_processor import SkipAttnProcessor
-from model.utils import get_trainable_module, init_adapter
-from utils import (compute_vae_encodings, numpy_to_pil, prepare_image,
-                   prepare_mask_image, resize_and_crop, resize_and_padding)
+from CatVTON.model.attn_processor import SkipAttnProcessor
+from CatVTON.model.utils import get_trainable_module, init_adapter
+from CatVTON.utils import (compute_vae_encodings, numpy_to_pil, prepare_image,
+                            prepare_mask_image, resize_and_crop, resize_and_padding)
+
+
+def get_cache_dir():
+    try:
+        from app.config import load_settings
+
+        settings = load_settings()
+        cache_dir = str(settings.hf_home)
+    except Exception:
+        cache_dir = os.environ.get("HF_HOME")
+
+    if not cache_dir:
+        cache_dir = os.path.join(str(Path.home()), ".cache", "huggingface", "hub")
+
+    os.environ["HF_HOME"] = cache_dir
+    os.environ.setdefault("HUGGINGFACE_HUB_CACHE", cache_dir)
+    return cache_dir
 
 
 class CatVTONPipeline:
@@ -36,12 +54,32 @@ class CatVTONPipeline:
         self.weight_dtype = weight_dtype
         self.skip_safety_check = skip_safety_check
 
-        self.noise_scheduler = DDIMScheduler.from_pretrained(base_ckpt, subfolder="scheduler")
-        self.vae = AutoencoderKL.from_pretrained("stabilityai/sd-vae-ft-mse").to(device, dtype=weight_dtype)
+        cache_dir = get_cache_dir()
+        self.noise_scheduler = DDIMScheduler.from_pretrained(
+            base_ckpt,
+            subfolder="scheduler",
+            cache_dir=cache_dir,
+        )
+        self.vae = AutoencoderKL.from_pretrained(
+            "stabilityai/sd-vae-ft-mse",
+            cache_dir=cache_dir,
+        ).to(device, dtype=weight_dtype)
         if not skip_safety_check:
-            self.feature_extractor = CLIPImageProcessor.from_pretrained(base_ckpt, subfolder="feature_extractor")
-            self.safety_checker = StableDiffusionSafetyChecker.from_pretrained(base_ckpt, subfolder="safety_checker").to(device, dtype=weight_dtype)
-        self.unet = UNet2DConditionModel.from_pretrained(base_ckpt, subfolder="unet").to(device, dtype=weight_dtype)
+            self.feature_extractor = CLIPImageProcessor.from_pretrained(
+                base_ckpt,
+                subfolder="feature_extractor",
+                cache_dir=cache_dir,
+            )
+            self.safety_checker = StableDiffusionSafetyChecker.from_pretrained(
+                base_ckpt,
+                subfolder="safety_checker",
+                cache_dir=cache_dir,
+            ).to(device, dtype=weight_dtype)
+        self.unet = UNet2DConditionModel.from_pretrained(
+            base_ckpt,
+            subfolder="unet",
+            cache_dir=cache_dir,
+        ).to(device, dtype=weight_dtype)
         init_adapter(self.unet, cross_attn_cls=SkipAttnProcessor)  # Skip Cross-Attention
         self.attn_modules = get_trainable_module(self.unet, "attention")
         self.auto_attn_ckpt_load(attn_ckpt, attn_ckpt_version)
@@ -64,7 +102,8 @@ class CatVTONPipeline:
         if os.path.exists(attn_ckpt):
             load_checkpoint_in_model(self.attn_modules, os.path.join(attn_ckpt, sub_folder, 'attention'))
         else:
-            repo_path = snapshot_download(repo_id=attn_ckpt)
+            cache_dir = get_cache_dir()
+            repo_path = snapshot_download(repo_id=attn_ckpt, cache_dir=cache_dir)
             print(f"Downloaded {attn_ckpt} to {repo_path}")
             load_checkpoint_in_model(self.attn_modules, os.path.join(repo_path, sub_folder, 'attention'))
             
@@ -221,7 +260,8 @@ class CatVTONPix2PixPipeline(CatVTONPipeline):
         if os.path.exists(attn_ckpt):
             load_checkpoint_in_model(self.attn_modules, os.path.join(attn_ckpt, version, 'attention'))
         else:
-            repo_path = snapshot_download(repo_id=attn_ckpt)
+            cache_dir = get_cache_dir()
+            repo_path = snapshot_download(repo_id=attn_ckpt, cache_dir=cache_dir)
             print(f"Downloaded {attn_ckpt} to {repo_path}")
             load_checkpoint_in_model(self.attn_modules, os.path.join(repo_path, version, 'attention'))
     

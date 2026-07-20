@@ -2,9 +2,10 @@ import argparse
 import os
 
 from huggingface_hub import snapshot_download
+from pathlib import Path
 from tqdm import tqdm
 
-from model.cloth_masker import AutoMasker
+from .model.cloth_masker import AutoMasker
 
 
 def parse_args():
@@ -31,7 +32,8 @@ def parse_args():
     return args
 
 def main(args):
-    args.repo_path = snapshot_download(repo_id=args.repo_path)
+    cache_dir = os.environ.get('HF_HOME') or os.path.join(str(Path.home()), '.cache', 'huggingface', 'hub')
+    args.repo_path = snapshot_download(repo_id=args.repo_path, cache_dir=cache_dir)
 
     automasker = AutoMasker(
         densepose_ckpt=os.path.join(args.repo_path, "DensePose"),

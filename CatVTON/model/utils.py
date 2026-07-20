@@ -1,7 +1,7 @@
 import os
 import json
 import torch
-from model.attn_processor import AttnProcessor2_0, SkipAttnProcessor 
+from .attn_processor import AttnProcessor2_0, SkipAttnProcessor 
 
 
 def init_adapter(unet, 

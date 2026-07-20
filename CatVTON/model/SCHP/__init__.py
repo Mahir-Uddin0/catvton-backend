@@ -1,5 +1,5 @@
-from model.SCHP import networks
-from model.SCHP.utils.transforms import get_affine_transform, transform_logits
+from . import networks
+from .utils.transforms import get_affine_transform, transform_logits
 
 from collections import OrderedDict
 import torch
