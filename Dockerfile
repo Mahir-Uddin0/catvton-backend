@@ -7,10 +7,8 @@ ENV DEBIAN_FRONTEND=noninteractive \
     CATVTON_ROOT=/service/CatVTON \
     DEVICE=auto \
     PORT=8000 \
-    # HF_HOME=/root/.cache/huggingface \
-    # TRANSFORMERS_CACHE=/root/.cache/huggingface \
     HF_HOME=/cache/huggingface \
-    TRANSFORMERS_CACHE=/cache/huggingface
+    TRANSFORMERS_CACHE=/cache/huggingface \
     HF_HUB_OFFLINE=0 \
     TRANSFORMERS_OFFLINE=0
 
