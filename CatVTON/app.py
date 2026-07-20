@@ -9,9 +9,11 @@ from diffusers.image_processor import VaeImageProcessor
 from huggingface_hub import snapshot_download
 from PIL import Image
 
-from model.cloth_masker import AutoMasker, vis_mask
-from model.pipeline import CatVTONPipeline
-from utils import init_weight_dtype, resize_and_crop, resize_and_padding
+from pathlib import Path
+
+from .model.cloth_masker import AutoMasker, vis_mask
+from .model.pipeline import CatVTONPipeline
+from .utils import init_weight_dtype, resize_and_crop, resize_and_padding
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Simple example of a training script.")
@@ -101,7 +103,8 @@ def image_grid(imgs, rows, cols):
 
 
 args = parse_args()
-repo_path = snapshot_download(repo_id=args.resume_path)
+cache_dir = os.environ.get('HF_HOME') or os.path.join(str(Path.home()), '.cache', 'huggingface', 'hub')
+repo_path = snapshot_download(repo_id=args.resume_path, cache_dir=cache_dir)
 # Pipeline
 pipeline = CatVTONPipeline(
     base_ckpt=args.base_model_path,

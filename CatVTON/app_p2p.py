@@ -9,9 +9,11 @@ from diffusers.image_processor import VaeImageProcessor
 from huggingface_hub import snapshot_download
 from PIL import Image
 
-from model.cloth_masker import AutoMasker, vis_mask
-from model.pipeline import CatVTONPipeline, CatVTONPix2PixPipeline
-from utils import init_weight_dtype, resize_and_crop, resize_and_padding
+from pathlib import Path
+
+from .model.cloth_masker import AutoMasker, vis_mask
+from .model.pipeline import CatVTONPipeline, CatVTONPix2PixPipeline
+from .utils import init_weight_dtype, resize_and_crop, resize_and_padding
 
 
 def parse_args():
@@ -118,7 +120,8 @@ def image_grid(imgs, rows, cols):
 
 
 args = parse_args()
-repo_path = snapshot_download(repo_id=args.ip_resume_path)
+cache_dir = os.environ.get('HF_HOME') or os.path.join(str(Path.home()), '.cache', 'huggingface', 'hub')
+repo_path = snapshot_download(repo_id=args.ip_resume_path, cache_dir=cache_dir)
 # Pipeline
 pipeline_p2p = CatVTONPix2PixPipeline(
     base_ckpt=args.p2p_base_model_path,
@@ -130,7 +133,7 @@ pipeline_p2p = CatVTONPix2PixPipeline(
 )
 
 # Pipeline
-repo_path = snapshot_download(repo_id=args.ip_resume_path)  
+repo_path = snapshot_download(repo_id=args.ip_resume_path, cache_dir=cache_dir)  
 pipeline = CatVTONPipeline(
     base_ckpt=args.ip_base_model_path,
     attn_ckpt=repo_path,
