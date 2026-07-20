@@ -1,7 +1,17 @@
 from pathlib import Path
+
 from huggingface_hub import snapshot_download
 
-CACHE_DIR = str(Path.home() / ".cache" / "huggingface")
+from app.config import load_settings
+
+
+settings = load_settings()
+
+CACHE_DIR = settings.hf_home
+
+print(f"HF_HOME: {CACHE_DIR}")
+
+Path(CACHE_DIR).mkdir(parents=True, exist_ok=True)
 
 repos = [
     "timbrooks/instruct-pix2pix",
@@ -9,12 +19,13 @@ repos = [
     "stabilityai/sd-vae-ft-mse",
 ]
 
-Path(CACHE_DIR).mkdir(parents=True, exist_ok=True)
-
 for repo in repos:
     print(f"Downloading {repo}...")
-    snapshot_download(
+
+    path = snapshot_download(
         repo_id=repo,
-        cache_dir=CACHE_DIR,
+        cache_dir=str(CACHE_DIR),
         local_dir_use_symlinks=False,
     )
+
+    print(f"Downloaded to: {path}")
