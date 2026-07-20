@@ -18,13 +18,18 @@ from app.config import load_settings
 logger = logging.getLogger(__name__)
 settings = load_settings()
 
+logger.info("HF_HOME=%s", os.getenv("HF_HOME"))
+logger.info("Settings hf_home=%s", settings.hf_home)
+print(f"HF_HOME={settings.hf_home}")
 
 def load_pipeline(app: FastAPI) -> None:
     root = settings.catvton_root
     if not (root / "model" / "pipeline.py").is_file():
         raise RuntimeError(f"CATVTON_ROOT is invalid: {root}")
-    sys.path.insert(0, str(root))
-    from model.pipeline import CatVTONPix2PixPipeline
+    for candidate in (str(root.parent), str(root)):
+        if candidate not in sys.path:
+            sys.path.insert(0, candidate)
+    from CatVTON.model.pipeline import CatVTONPix2PixPipeline
 
     app.state.pipeline = CatVTONPix2PixPipeline(
         base_ckpt=os.getenv("BASE_MODEL_ID", "timbrooks/instruct-pix2pix"),
@@ -75,7 +80,7 @@ async def read_image(upload: UploadFile, name: str) -> Image.Image:
 
 
 def infer(person_image: Image.Image, cloth_image: Image.Image, steps: int, guidance: float, seed: int) -> Image.Image:
-    from utils import resize_and_crop, resize_and_padding
+    from CatVTON.utils import resize_and_crop, resize_and_padding
 
     person = resize_and_crop(person_image, (settings.width, settings.height))
     cloth = resize_and_padding(cloth_image, (settings.width, settings.height))
