@@ -4,8 +4,12 @@ from pathlib import Path
 import torch
 from PIL import Image
 
-from model.pipeline import CatVTONPix2PixPipeline
-from utils import resize_and_crop, resize_and_padding
+from app.config import load_settings
+from CatVTON.model.pipeline import CatVTONPix2PixPipeline
+from CatVTON.utils import resize_and_crop, resize_and_padding
+
+settings = load_settings()
+os.environ.setdefault("HF_HOME", str(settings.hf_home))
 
 # CPU settings
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
@@ -16,7 +20,7 @@ torch.set_num_threads(max(1, os.cpu_count() or 1))
 # Small resolution + few steps: validates the whole pipeline, not image quality.
 WIDTH = 768
 HEIGHT = 1024
-STEPS = 50
+STEPS = 1
 GUIDANCE_SCALE = 2.5  # Avoids classifier-free-guidance's doubled CPU work.
 SEED = 42
 
