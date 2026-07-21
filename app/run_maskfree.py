@@ -11,17 +11,16 @@ from CatVTON.utils import resize_and_crop, resize_and_padding
 settings = load_settings()
 os.environ.setdefault("HF_HOME", str(settings.hf_home))
 
-# CPU settings
+
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
 DTYPE = torch.float16 if DEVICE == "cuda" else torch.float32
 torch.set_num_threads(max(1, os.cpu_count() or 1))
 
-# Small resolution + few steps: validates the whole pipeline, not image quality.
 WIDTH = 768
 HEIGHT = 1024
-STEPS = 1
-GUIDANCE_SCALE = 2.5  # Avoids classifier-free-guidance's doubled CPU work.
+STEPS = 50
+GUIDANCE_SCALE = 2.5  
 SEED = 42
 
 PERSON = Path("inputs/person.jpg")
@@ -35,7 +34,7 @@ pipeline = CatVTONPix2PixPipeline(
     weight_dtype=DTYPE,
     device=DEVICE,
     use_tf32=False,            # CUDA-only optimization
-    skip_safety_check=True,    # Avoids loading an unneeded CLIP safety model
+    skip_safety_check=True,
 )
 
 person = resize_and_crop(Image.open(PERSON).convert("RGB"), (WIDTH, HEIGHT))
