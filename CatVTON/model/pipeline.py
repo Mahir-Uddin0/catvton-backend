@@ -19,6 +19,8 @@ from CatVTON.model.attn_processor import SkipAttnProcessor
 from CatVTON.model.utils import get_trainable_module, init_adapter
 from CatVTON.utils import (compute_vae_encodings, numpy_to_pil, prepare_image,
                             prepare_mask_image, resize_and_crop, resize_and_padding)
+from quantization.export_unet import export_unet_to_onnx
+from quantization.onnx_unet import OnnxUNet2DConditionModel
 
 
 def get_cache_dir():
@@ -83,8 +85,16 @@ class CatVTONPipeline:
         init_adapter(self.unet, cross_attn_cls=SkipAttnProcessor)  # Skip Cross-Attention
         self.attn_modules = get_trainable_module(self.unet, "attention")
         self.auto_attn_ckpt_load(attn_ckpt, attn_ckpt_version)
+        onnx_unet_path = Path(cache_dir) / "quantization" / "unet.onnx"
+        if not onnx_unet_path.exists():
+            export_unet_to_onnx(self.unet, onnx_unet_path)
+        self.unet = OnnxUNet2DConditionModel.from_onnx(
+            onnx_unet_path,
+            device=device,
+        )
+        del self.attn_modules
         # Pytorch 2.0 Compile
-        if compile:
+        if compile and isinstance(self.unet, torch.nn.Module):
             self.unet = torch.compile(self.unet)
             self.vae = torch.compile(self.vae, mode="reduce-overhead")
             
