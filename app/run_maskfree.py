@@ -14,7 +14,8 @@ os.environ.setdefault("HF_HOME", str(settings.hf_home))
 
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
-DTYPE = torch.float16 if DEVICE == "cuda" else torch.float32
+# DTYPE = torch.float16 if DEVICE == "cuda" else torch.float32
+DTYPE = torch.float32
 torch.set_num_threads(max(1, os.cpu_count() or 1))
 
 WIDTH = 768

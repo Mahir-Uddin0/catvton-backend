@@ -1,5 +1,6 @@
 import inspect
 import os
+import gc
 from typing import Union
 from pathlib import Path
 
@@ -19,6 +20,10 @@ from CatVTON.model.attn_processor import SkipAttnProcessor
 from CatVTON.model.utils import get_trainable_module, init_adapter
 from CatVTON.utils import (compute_vae_encodings, numpy_to_pil, prepare_image,
                             prepare_mask_image, resize_and_crop, resize_and_padding)
+from quantization.export_unet import export_pretrained_unet_to_onnx
+from quantization.onnx_unet import OnnxUNet2DConditionModel
+from quantization.build_tensorrt_engine import build_tensorrt_engine_from_onnx
+from quantization.tensorrt_unet import TensorRTUNet2DConditionModel
 
 
 def get_cache_dir():
@@ -75,17 +80,51 @@ class CatVTONPipeline:
                 subfolder="safety_checker",
                 cache_dir=cache_dir,
             ).to(device, dtype=weight_dtype)
-        self.unet = UNet2DConditionModel.from_pretrained(
-            base_ckpt,
-            subfolder="unet",
-            cache_dir=cache_dir,
-        ).to(device, dtype=weight_dtype)
-        init_adapter(self.unet, cross_attn_cls=SkipAttnProcessor)  # Skip Cross-Attention
-        self.attn_modules = get_trainable_module(self.unet, "attention")
-        self.auto_attn_ckpt_load(attn_ckpt, attn_ckpt_version)
+        # self.unet = UNet2DConditionModel.from_pretrained(
+        #     base_ckpt,
+        #     subfolder="unet",
+        #     cache_dir=cache_dir,
+        # ).to(device, dtype=weight_dtype)
+        # init_adapter(self.unet, cross_attn_cls=SkipAttnProcessor)  # Skip Cross-Attention
+        # self.attn_modules = get_trainable_module(self.unet, "attention")
+        # self.auto_attn_ckpt_load(attn_ckpt, attn_ckpt_version)
+
+        onnx_unet_path = Path(cache_dir) / "quantization" / "unet.onnx"
+        if not onnx_unet_path.exists():
+            export_pretrained_unet_to_onnx(
+                base_ckpt=base_ckpt,
+                attn_ckpt=attn_ckpt,
+                attn_ckpt_version=attn_ckpt_version,
+                onnx_path=onnx_unet_path,
+                device=device,
+                weight_dtype=weight_dtype,
+                cache_dir=cache_dir,
+            )
+            
+        # self.unet = OnnxUNet2DConditionModel.from_onnx(
+        #     onnx_unet_path,
+        #     device=device,
+        # )
+
+        trt_engine_path = Path(cache_dir) / "quantization" / "unet_fp16.engine"
+        if not trt_engine_path.exists():
+            built_engine_path = build_tensorrt_engine_from_onnx(
+                onnx_path=onnx_unet_path,
+                engine_path=trt_engine_path,
+                fp16=True,
+            )
+            if built_engine_path is not None:
+                trt_engine_path = Path(built_engine_path)
+
+        self.unet = TensorRTUNet2DConditionModel.from_engine(
+            trt_engine_path,
+            device=device,
+            fallback_to_onnx=True,
+        )
         # Pytorch 2.0 Compile
-        if compile:
+        if compile and isinstance(self.unet, torch.nn.Module):
             self.unet = torch.compile(self.unet)
+        if compile:
             self.vae = torch.compile(self.vae, mode="reduce-overhead")
             
         # Enable TF32 for faster training on Ampere GPUs (A100 and RTX 30 series).
@@ -221,6 +260,7 @@ class CatVTONPipeline:
                     noise_pred = noise_pred_uncond + guidance_scale * (
                         noise_pred_text - noise_pred_uncond
                     )
+                print(i)
                 # compute the previous noisy sample x_t -> x_t-1
                 latents = self.noise_scheduler.step(
                     noise_pred, t, latents, **extra_step_kwargs
