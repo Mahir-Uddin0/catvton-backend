@@ -22,6 +22,8 @@ from CatVTON.utils import (compute_vae_encodings, numpy_to_pil, prepare_image,
                             prepare_mask_image, resize_and_crop, resize_and_padding)
 from quantization.export_unet import export_pretrained_unet_to_onnx
 from quantization.onnx_unet import OnnxUNet2DConditionModel
+from quantization.build_tensorrt_engine import build_tensorrt_engine_from_onnx
+from quantization.tensorrt_unet import TensorRTUNet2DConditionModel
 
 
 def get_cache_dir():
@@ -98,16 +100,26 @@ class CatVTONPipeline:
                 weight_dtype=weight_dtype,
                 cache_dir=cache_dir,
             )
+            
+        # self.unet = OnnxUNet2DConditionModel.from_onnx(
+        #     onnx_unet_path,
+        #     device=device,
+        # )
 
-        # del self.attn_modules
-        # del pytorch_unet
-        # gc.collect()
-        
-        # if device.startswith("cuda") and torch.cuda.is_available():
-        #     torch.cuda.empty_cache()
-        self.unet = OnnxUNet2DConditionModel.from_onnx(
-            onnx_unet_path,
+        trt_engine_path = Path(cache_dir) / "quantization" / "unet_fp16.engine"
+        if not trt_engine_path.exists():
+            built_engine_path = build_tensorrt_engine_from_onnx(
+                onnx_path=onnx_unet_path,
+                engine_path=trt_engine_path,
+                fp16=True,
+            )
+            if built_engine_path is not None:
+                trt_engine_path = Path(built_engine_path)
+
+        self.unet = TensorRTUNet2DConditionModel.from_engine(
+            trt_engine_path,
             device=device,
+            fallback_to_onnx=True,
         )
         # Pytorch 2.0 Compile
         if compile and isinstance(self.unet, torch.nn.Module):
