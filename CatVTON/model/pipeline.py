@@ -20,7 +20,7 @@ from CatVTON.model.attn_processor import SkipAttnProcessor
 from CatVTON.model.utils import get_trainable_module, init_adapter
 from CatVTON.utils import (compute_vae_encodings, numpy_to_pil, prepare_image,
                             prepare_mask_image, resize_and_crop, resize_and_padding)
-from quantization.export_unet import export_unet_to_onnx
+from quantization.export_unet import export_pretrained_unet_to_onnx
 from quantization.onnx_unet import OnnxUNet2DConditionModel
 
 
@@ -78,22 +78,33 @@ class CatVTONPipeline:
                 subfolder="safety_checker",
                 cache_dir=cache_dir,
             ).to(device, dtype=weight_dtype)
-        pytorch_unet = UNet2DConditionModel.from_pretrained(
-            base_ckpt,
-            subfolder="unet",
-            cache_dir=cache_dir,
-        ).to(device, dtype=weight_dtype)
-        init_adapter(pytorch_unet, cross_attn_cls=SkipAttnProcessor)  # Skip Cross-Attention
-        self.attn_modules = get_trainable_module(pytorch_unet, "attention")
-        self.auto_attn_ckpt_load(attn_ckpt, attn_ckpt_version)
+        # self.unet = UNet2DConditionModel.from_pretrained(
+        #     base_ckpt,
+        #     subfolder="unet",
+        #     cache_dir=cache_dir,
+        # ).to(device, dtype=weight_dtype)
+        # init_adapter(self.unet, cross_attn_cls=SkipAttnProcessor)  # Skip Cross-Attention
+        # self.attn_modules = get_trainable_module(self.unet, "attention")
+        # self.auto_attn_ckpt_load(attn_ckpt, attn_ckpt_version)
+
         onnx_unet_path = Path(cache_dir) / "quantization" / "unet.onnx"
         if not onnx_unet_path.exists():
-            export_unet_to_onnx(pytorch_unet, onnx_unet_path)
-        del self.attn_modules
-        del pytorch_unet
-        gc.collect()
-        if device.startswith("cuda") and torch.cuda.is_available():
-            torch.cuda.empty_cache()
+            export_pretrained_unet_to_onnx(
+                base_ckpt=base_ckpt,
+                attn_ckpt=attn_ckpt,
+                attn_ckpt_version=attn_ckpt_version,
+                onnx_path=onnx_unet_path,
+                device=device,
+                weight_dtype=weight_dtype,
+                cache_dir=cache_dir,
+            )
+
+        # del self.attn_modules
+        # del pytorch_unet
+        # gc.collect()
+        
+        # if device.startswith("cuda") and torch.cuda.is_available():
+        #     torch.cuda.empty_cache()
         self.unet = OnnxUNet2DConditionModel.from_onnx(
             onnx_unet_path,
             device=device,
@@ -101,6 +112,7 @@ class CatVTONPipeline:
         # Pytorch 2.0 Compile
         if compile and isinstance(self.unet, torch.nn.Module):
             self.unet = torch.compile(self.unet)
+        if compile:
             self.vae = torch.compile(self.vae, mode="reduce-overhead")
             
         # Enable TF32 for faster training on Ampere GPUs (A100 and RTX 30 series).
@@ -236,6 +248,7 @@ class CatVTONPipeline:
                     noise_pred = noise_pred_uncond + guidance_scale * (
                         noise_pred_text - noise_pred_uncond
                     )
+                print(i)
                 # compute the previous noisy sample x_t -> x_t-1
                 latents = self.noise_scheduler.step(
                     noise_pred, t, latents, **extra_step_kwargs
