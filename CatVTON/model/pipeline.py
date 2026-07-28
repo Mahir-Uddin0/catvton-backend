@@ -1,7 +1,7 @@
 import inspect
 import os
 import gc
-from typing import Union
+from typing import Optional, Union
 from pathlib import Path
 
 import PIL
@@ -24,6 +24,7 @@ from quantization.export_unet import export_pretrained_unet_to_onnx
 from quantization.onnx_unet import OnnxUNet2DConditionModel
 from quantization.build_tensorrt_engine import build_tensorrt_engine_from_onnx
 from quantization.tensorrt_unet import TensorRTUNet2DConditionModel
+from quantization.triton_unet import TritonUNet2DConditionModel
 
 
 def get_cache_dir():
@@ -54,6 +55,11 @@ class CatVTONPipeline:
         compile=False,
         skip_safety_check=False,
         use_tf32=True,
+        unet_backend: Optional[str] = None,
+        triton_url: Optional[str] = None,
+        triton_model_name: Optional[str] = None,
+        triton_model_version: Optional[str] = None,
+        triton_protocol: Optional[str] = None,
     ):
         self.device = device
         self.weight_dtype = weight_dtype
@@ -89,38 +95,58 @@ class CatVTONPipeline:
         # self.attn_modules = get_trainable_module(self.unet, "attention")
         # self.auto_attn_ckpt_load(attn_ckpt, attn_ckpt_version)
 
-        onnx_unet_path = Path(cache_dir) / "quantization" / "unet.onnx"
-        if not onnx_unet_path.exists():
-            export_pretrained_unet_to_onnx(
-                base_ckpt=base_ckpt,
-                attn_ckpt=attn_ckpt,
-                attn_ckpt_version=attn_ckpt_version,
-                onnx_path=onnx_unet_path,
+        backend = (unet_backend or os.getenv("UNET_BACKEND", "tensorrt")).strip().lower()
+        self.unet_backend = backend
+        if backend == "triton":
+            self.unet = TritonUNet2DConditionModel.from_server(
+                url=triton_url or os.getenv("TRITON_URL", "localhost:8000"),
+                model_name=triton_model_name or os.getenv("TRITON_MODEL_NAME", "unet"),
+                model_version=triton_model_version or os.getenv("TRITON_MODEL_VERSION", ""),
+                protocol=triton_protocol or os.getenv("TRITON_PROTOCOL", "http"),
                 device=device,
-                weight_dtype=weight_dtype,
-                cache_dir=cache_dir,
             )
-            
-        # self.unet = OnnxUNet2DConditionModel.from_onnx(
-        #     onnx_unet_path,
-        #     device=device,
-        # )
+        else:
+            if backend not in {"tensorrt", "onnx"}:
+                raise ValueError("unet_backend must be 'tensorrt', 'onnx', or 'triton'.")
 
-        trt_engine_path = Path(cache_dir) / "quantization" / "unet_fp16.engine"
-        if not trt_engine_path.exists():
-            built_engine_path = build_tensorrt_engine_from_onnx(
-                onnx_path=onnx_unet_path,
-                engine_path=trt_engine_path,
-                fp16=True,
-            )
-            if built_engine_path is not None:
-                trt_engine_path = Path(built_engine_path)
+            onnx_unet_path = Path(cache_dir) / "quantization" / "unet.onnx"
+            if not onnx_unet_path.exists():
+                export_pretrained_unet_to_onnx(
+                    base_ckpt=base_ckpt,
+                    attn_ckpt=attn_ckpt,
+                    attn_ckpt_version=attn_ckpt_version,
+                    onnx_path=onnx_unet_path,
+                    device=device,
+                    weight_dtype=weight_dtype,
+                    cache_dir=cache_dir,
+                )
 
-        self.unet = TensorRTUNet2DConditionModel.from_engine(
-            trt_engine_path,
-            device=device,
-            fallback_to_onnx=True,
-        )
+            if backend == "onnx":
+                # Keep the direct ONNX wrapper available for future backend tests.
+                # self.unet = OnnxUNet2DConditionModel.from_onnx(
+                #     onnx_unet_path,
+                #     device=device,
+                # )
+                self.unet = TensorRTUNet2DConditionModel.from_onnx(
+                    onnx_unet_path,
+                    device=device,
+                )
+            else:
+                trt_engine_path = Path(cache_dir) / "quantization" / "unet_fp16.engine"
+                if not trt_engine_path.exists():
+                    built_engine_path = build_tensorrt_engine_from_onnx(
+                        onnx_path=onnx_unet_path,
+                        engine_path=trt_engine_path,
+                        fp16=True,
+                    )
+                    if built_engine_path is not None:
+                        trt_engine_path = Path(built_engine_path)
+
+                self.unet = TensorRTUNet2DConditionModel.from_engine(
+                    trt_engine_path,
+                    device=device,
+                    fallback_to_onnx=True,
+                )
         # Pytorch 2.0 Compile
         if compile and isinstance(self.unet, torch.nn.Module):
             self.unet = torch.compile(self.unet)
